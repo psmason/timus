@@ -1,25 +1,61 @@
 #include <iostream>
+#include <sstream>
 #include <unordered_map>
 #include <vector>
 #include <memory>
+#include <iterator>
 
 namespace {
-  std::vector<std::vector<char> > digitmap;
-}
+  char getNumber(const char c) 
+  {
+    switch(c) {
+    case 'i':
+    case 'j':
+      return '1';
+    case 'a':
+    case 'b':
+    case 'c':
+      return '2';
+    case 'd':
+    case 'e':
+    case 'f':
+      return '3';
+    case 'g':
+    case 'h':
+      return '4';
+    case 'k':
+    case 'l':
+      return '5';
+    case 'm':
+    case 'n':
+      return '6';
+    case 'p':
+    case 'r':
+    case 's':
+      return '7';
+    case 't':
+    case 'u':
+    case 'v':
+      return '8';
+    case 'w':
+    case 'x':
+    case 'y':
+      return '9';
+    case 'o':
+    case 'q':
+    case 'z':
+      return '0';    
+    }
+  }
 
-void initDigitMap()
-{
-  using Chars = std::vector<char>;
-  digitmap.push_back(Chars{'o','q','z'});
-  digitmap.push_back(Chars{'i','j'});
-  digitmap.push_back(Chars{'a','b','c'});
-  digitmap.push_back(Chars{'d','e','f'});
-  digitmap.push_back(Chars{'g','h'});
-  digitmap.push_back(Chars{'k','l'});
-  digitmap.push_back(Chars{'m','n'});
-  digitmap.push_back(Chars{'p','r','s'});
-  digitmap.push_back(Chars{'t','u','v'});
-  digitmap.push_back(Chars{'w','x','y'});
+  const std::string getNumberString(const std::string& s)
+  {
+    std::ostringstream oss;
+    for (const auto c: s) {
+      oss << getNumber(c);
+    }
+    return oss.str();
+  }
 }
 
 struct TrieNode
@@ -29,7 +65,7 @@ struct TrieNode
 
 struct TrieItr
 {
-  TrieNode* node;
+  const TrieNode* node;
   bool has(const char);
   TrieItr next(const char);
 };
@@ -48,12 +84,17 @@ TrieItr TrieItr::next(const char c)
 class Trie
 {
 public:
-  // data
   TrieNode d_root;
 
   void addString(const std::string& s);
   bool hasString(const std::string& s);
+  TrieItr getItr() const;
 };
+
+TrieItr Trie::getItr() const
+{
+  return TrieItr{&d_root};
+}
 
 void Trie::addString(const std::string& s)
 {
@@ -76,7 +117,7 @@ void Trie::addString(const std::string& s)
 bool Trie::hasString(const std::string& s)
 {
   TrieItr itr{&d_root};
-  for (const char c : s) {
+  for (const char c : s) {    
     if (!itr.has(c)) {
       return false;
     }
@@ -92,9 +133,146 @@ void testString(Trie& trie, const std::string& s, bool expected)
   }
 }
 
+int getOffset(const std::vector<std::string>& path)
+{
+  int offset = 0;
+  for (const auto& s : path) {
+    offset += s.length();
+  }
+  return offset;
+}
+
+void printSequence(const std::vector<std::string>& sequence
+                   , const std::string& category)
+{
+  std::cout << category << ":: ";
+  std::ostream_iterator<std::string> itr(std::cout, " ");
+  std::copy(sequence.begin(), sequence.end(), itr);
+  std::cout << std::endl;
+}
+
+void traverseNumber(const std::string& number
+                    , const Trie& trie
+                    , std::vector<std::string>& stack
+                    , std::vector<std::string>& path
+                    , std::vector<std::string>& solution)
+{
+  const auto offset = getOffset(path);
+  if (number.size() == offset) {
+    if (solution.empty()) {
+      solution = path;
+      return;
+    }
+    else if (path.size() < solution.size()) {
+      solution = path;
+    }
+    return;
+  }
+
+  std::ostringstream oss;
+  auto trieItr = trie.getItr();
+  for (auto itr = number.begin() + getOffset(path)
+         ; itr != number.end()
+         ; ++itr) {
+
+    if (trieItr.has('\0')) {
+      stack.push_back(oss.str());
+    }
+
+    if (trieItr.has(*itr)) {
+      oss << *itr;
+      trieItr = trieItr.next(*itr);
+    }
+    else {
+      return;
+    }
+  }
+
+   if (trieItr.has('\0')) {
+     stack.push_back(oss.str());
+   }
+}
+
+void maintainTraversal(std::vector<std::string>& stack
+                       , std::vector<std::string>& path)
+{
+  while (true) {
+    if (stack.empty() || path.empty()) {
+      return;
+    }
+    if (stack.back() == path.back()) {
+      stack.pop_back();
+      path.pop_back();
+    }
+    else {
+      return;
+    }
+  }
+}
+
+void findSequence(const std::string& number
+                  , const Trie& trie
+                  , std::vector<std::string>& solution)
+{
+  std::vector<std::string> stack;
+  std::vector<std::string> path;
+
+  traverseNumber(number, trie, stack, path, solution);
+  //printSequence(stack, "stack");
+
+  while (!stack.empty()) {
+    path.push_back(stack.back());
+    //printSequence(path, "path");
+    //printSequence(stack, "stack");
+    traverseNumber(number, trie, stack, path, solution);
+    maintainTraversal(stack, path);
+  }
+}
+
+using WordMap = std::unordered_map<std::string, std::string>;
+
+void printSolution(const std::vector<std::string>& solution
+                   , const WordMap& wordMap)
+{
+  if (solution.empty()) {
+    std::cout << "No solution." << std::endl;
+    return;
+  }
+  
+  for (const auto& s : solution) {
+    std::cout << wordMap.find(s)->second << " ";
+  }
+  std::cout << std::endl;
+}
+
+void runNumber(const std::string& number)
+{
+  std::cout << "running for number " << number << std::endl;
+  int wordCount;
+  std::cin >> wordCount;
+
+  WordMap wordMap;
+
+  Trie trie;
+  for (;wordCount>0;--wordCount) {
+    std::string word;
+    std::cin >> word;
+    const auto numberString = getNumberString(word);
+    wordMap.emplace(numberString, word);
+    trie.addString(getNumberString(word));
+  }
+
+  std::vector<std::string> solution;
+  findSequence(number, trie, solution);  
+  printSolution(solution, wordMap);
+}
+
 int main()
 {
-  initDigitMap();
+  std::string number;
+  std::cin >> number;
+  runNumber(number);
+  /*
   Trie trie;
   trie.addString("it");  
   trie.addString("your");
@@ -104,4 +282,7 @@ int main()
   testString(trie, "your", true);
   testString(trie, "pizza", true);
   testString(trie, "yogurt", false);
+  */
+
+  
 }
