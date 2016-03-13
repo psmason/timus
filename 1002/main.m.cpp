@@ -87,7 +87,6 @@ public:
   TrieNode d_root;
 
   void addString(const std::string& s);
-  bool hasString(const std::string& s);
   TrieItr getItr() const;
 };
 
@@ -112,25 +111,6 @@ void Trie::addString(const std::string& s)
   }
   // marking the end of the trie string
   currentNode->links.emplace('\0', std::unique_ptr<TrieNode>(nullptr));
-}
-
-bool Trie::hasString(const std::string& s)
-{
-  TrieItr itr{&d_root};
-  for (const char c : s) {    
-    if (!itr.has(c)) {
-      return false;
-    }
-    itr = itr.next(c);    
-  }
-  return itr.has('\0');
-}
-
-void testString(Trie& trie, const std::string& s, bool expected)
-{
-  if (trie.hasString(s) != expected) {
-    std::cout << "Unexpected result for string " << s << std::endl;
-  }
 }
 
 int getOffset(const std::vector<std::string>& path)
@@ -176,7 +156,14 @@ void traverseNumber(const std::string& number
          ; ++itr) {
 
     if (trieItr.has('\0')) {
-      stack.push_back(oss.str());
+      // a possible solution if path + 1 <= solution
+
+      if (!solution.empty() && path.size() + 1 >= solution.size()) {
+        // no need to traverse since an potential paths would be bigger than the solution.
+      }
+      else {
+        stack.push_back(oss.str());
+      }
     }
 
     if (trieItr.has(*itr)) {
@@ -218,13 +205,17 @@ void findSequence(const std::string& number
   std::vector<std::string> path;
 
   traverseNumber(number, trie, stack, path, solution);
-  //printSequence(stack, "stack");
 
   while (!stack.empty()) {
     path.push_back(stack.back());
-    //printSequence(path, "path");
-    //printSequence(stack, "stack");
-    traverseNumber(number, trie, stack, path, solution);
+
+    if (!solution.empty() && path.size() >= solution.size()) {
+      // no need to traverse since an potential paths would be bigger than the solution.
+    }
+    else {
+      traverseNumber(number, trie, stack, path, solution);
+    }
+
     maintainTraversal(stack, path);
   }
 }
@@ -239,15 +230,17 @@ void printSolution(const std::vector<std::string>& solution
     return;
   }
   
-  for (const auto& s : solution) {
-    std::cout << wordMap.find(s)->second << " ";
+  for (auto itr = solution.begin(); itr != solution.end(); ++itr) {
+    if (itr != solution.begin()) {
+      std::cout << " ";
+    }
+    std::cout << wordMap.find(*itr)->second;
   }
   std::cout << std::endl;
 }
 
 void runNumber(const std::string& number)
 {
-  std::cout << "running for number " << number << std::endl;
   int wordCount;
   std::cin >> wordCount;
 
@@ -269,20 +262,12 @@ void runNumber(const std::string& number)
 
 int main()
 {
-  std::string number;
-  std::cin >> number;
-  runNumber(number);
-  /*
-  Trie trie;
-  trie.addString("it");  
-  trie.addString("your");
-  trie.addString("pizza");
-
-  testString(trie, "it", true);
-  testString(trie, "your", true);
-  testString(trie, "pizza", true);
-  testString(trie, "yogurt", false);
-  */
-
-  
+  while (true) {
+    std::string number;
+    std::cin >> number;
+    if ("-1" == number) {
+      break;
+    }
+    runNumber(number);
+  }
 }
