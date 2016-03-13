@@ -61,11 +61,13 @@ namespace {
 struct TrieNode
 {
   std::unordered_map<char, std::unique_ptr<TrieNode> > links;
+  int                                                  wordIndex;
 };
 
 struct TrieItr
 {
   const TrieNode* node;
+
   bool has(const char);
   TrieItr next(const char);
 };
@@ -85,6 +87,7 @@ class Trie
 {
 public:
   TrieNode d_root;
+  std::vector<std::string> d_words;
 
   void addString(const std::string& s);
   TrieItr getItr() const;
@@ -97,6 +100,7 @@ TrieItr Trie::getItr() const
 
 void Trie::addString(const std::string& s)
 {
+  d_words.push_back(s);
   TrieNode* currentNode = &d_root;
   for (const char c : s) {
     auto& links = currentNode->links;
@@ -111,18 +115,21 @@ void Trie::addString(const std::string& s)
   }
   // marking the end of the trie string
   currentNode->links.emplace('\0', std::unique_ptr<TrieNode>(nullptr));
+  currentNode->wordIndex = d_words.size()-1;
 }
 
-int getOffset(const std::vector<std::string>& path)
+int getOffset(const Trie& trie
+              , const std::vector<int>& path)
 {
   int offset = 0;
-  for (const auto& s : path) {
-    offset += s.length();
+  for (const auto& index : path) {
+    offset += trie.d_words[index].length();
   }
   return offset;
 }
 
-void printSequence(const std::vector<std::string>& sequence
+/*
+void printSequence(const std::vector<std::string*>& sequence
                    , const std::string& category)
 {
   std::cout << category << ":: ";
@@ -130,14 +137,15 @@ void printSequence(const std::vector<std::string>& sequence
   std::copy(sequence.begin(), sequence.end(), itr);
   std::cout << std::endl;
 }
+*/
 
 void traverseNumber(const std::string& number
                     , const Trie& trie
-                    , std::vector<std::string>& stack
-                    , std::vector<std::string>& path
-                    , std::vector<std::string>& solution)
+                    , std::vector<int>& stack
+                    , std::vector<int>& path
+                    , std::vector<int>& solution)
 {
-  const auto offset = getOffset(path);
+  const auto offset = getOffset(trie, path);
   if (number.size() == offset) {
     if (solution.empty()) {
       solution = path;
@@ -149,9 +157,8 @@ void traverseNumber(const std::string& number
     return;
   }
 
-  std::ostringstream oss;
   auto trieItr = trie.getItr();
-  for (auto itr = number.begin() + getOffset(path)
+  for (auto itr = number.begin() + offset
          ; itr != number.end()
          ; ++itr) {
 
@@ -162,12 +169,11 @@ void traverseNumber(const std::string& number
         // no need to traverse since an potential paths would be bigger than the solution.
       }
       else {
-        stack.push_back(oss.str());
+        stack.push_back(trieItr.node->wordIndex);
       }
     }
 
     if (trieItr.has(*itr)) {
-      oss << *itr;
       trieItr = trieItr.next(*itr);
     }
     else {
@@ -176,18 +182,21 @@ void traverseNumber(const std::string& number
   }
 
    if (trieItr.has('\0')) {
-     stack.push_back(oss.str());
+     stack.push_back(trieItr.node->wordIndex);
    }
 }
 
-void maintainTraversal(std::vector<std::string>& stack
-                       , std::vector<std::string>& path)
+void maintainTraversal(const Trie& trie
+                       , std::vector<int>& stack
+                       , std::vector<int>& path)
 {
   while (true) {
     if (stack.empty() || path.empty()) {
       return;
     }
-    if (stack.back() == path.back()) {
+    const auto& lhs = trie.d_words[stack.back()];
+    const auto& rhs = trie.d_words[path.back()];
+    if (lhs == rhs) {
       stack.pop_back();
       path.pop_back();
     }
@@ -199,10 +208,10 @@ void maintainTraversal(std::vector<std::string>& stack
 
 void findSequence(const std::string& number
                   , const Trie& trie
-                  , std::vector<std::string>& solution)
+                  , std::vector<int>& solution)
 {
-  std::vector<std::string> stack;
-  std::vector<std::string> path;
+  std::vector<int> stack;
+  std::vector<int> path;
 
   traverseNumber(number, trie, stack, path, solution);
 
@@ -216,13 +225,14 @@ void findSequence(const std::string& number
       traverseNumber(number, trie, stack, path, solution);
     }
 
-    maintainTraversal(stack, path);
+    maintainTraversal(trie, stack, path);
   }
 }
 
-using WordMap = std::unordered_map<std::string, std::string>;
+using WordMap = std::unordered_map<std::string, std::int>;
 
-void printSolution(const std::vector<std::string>& solution
+void printSolution(const Trie& trie
+                   , const std::vector<int>& solution
                    , const WordMap& wordMap)
 {
   if (solution.empty()) {
@@ -234,7 +244,8 @@ void printSolution(const std::vector<std::string>& solution
     if (itr != solution.begin()) {
       std::cout << " ";
     }
-    std::cout << wordMap.find(*itr)->second;
+    const auto& numberWord = trie.d_words[*itr];
+    std::cout << wordMap.find(numberWord)->second;
   }
   std::cout << std::endl;
 }
@@ -255,9 +266,9 @@ void runNumber(const std::string& number)
     trie.addString(getNumberString(word));
   }
 
-  std::vector<std::string> solution;
+  std::vector<int> solution;
   findSequence(number, trie, solution);  
-  printSolution(solution, wordMap);
+  printSolution(trie, solution, wordMap);
 }
 
 int main()
