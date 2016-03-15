@@ -56,6 +56,8 @@ namespace {
     }
     return oss.str();
   }
+
+  using WordSequence = std::vector<int16_t>;
 }
 
 struct TrieNode
@@ -88,10 +90,16 @@ class Trie
 public:
   TrieNode d_root;
   std::vector<std::string> d_words;
+  Trie(const int n);
 
   void addString(const std::string& s);
   TrieItr getItr() const;
 };
+
+Trie::Trie(const int n)
+{
+  d_words.reserve(n);
+}
 
 TrieItr Trie::getItr() const
 {
@@ -119,7 +127,7 @@ void Trie::addString(const std::string& s)
 }
 
 int getOffset(const Trie& trie
-              , const std::vector<int>& path)
+              , const WordSequence& path)
 {
   int offset = 0;
   for (const auto& index : path) {
@@ -128,34 +136,59 @@ int getOffset(const Trie& trie
   return offset;
 }
 
-/*
-void printSequence(const std::vector<std::string*>& sequence
-                   , const std::string& category)
+using TraversalTable = std::unordered_map<int, WordSequence >;
+TraversalTable traversalTable;
+
+bool checkTraversalTable(const int offset
+                         , WordSequence& stack)
 {
-  std::cout << category << ":: ";
-  std::ostream_iterator<std::string> itr(std::cout, " ");
-  std::copy(sequence.begin(), sequence.end(), itr);
-  std::cout << std::endl;
+  if (traversalTable.find(offset) == traversalTable.end()) {
+    return false;
+  }
+  
+  const auto& words = traversalTable[offset];
+  for (const auto& word : words) {
+    stack.push_back(word);
+  }
+
+  return true;
 }
-*/
+
+void updateTraversalTable(const int offset
+                          , const WordSequence& words)
+{
+  traversalTable[offset] = words;
+}
+
+void clearTraversalTable()
+{
+  traversalTable.clear();
+}
 
 void traverseNumber(const std::string& number
                     , const Trie& trie
-                    , std::vector<int>& stack
-                    , std::vector<int>& path
-                    , std::vector<int>& solution)
+                    , WordSequence& stack
+                    , WordSequence& path
+                    , WordSequence& solution)
 {
   const auto offset = getOffset(trie, path);
   if (number.size() == offset) {
     if (solution.empty()) {
       solution = path;
-      return;
     }
     else if (path.size() < solution.size()) {
       solution = path;
     }
     return;
   }
+  
+  if (checkTraversalTable(offset, stack)) {
+    // used an already computed search.
+    return;
+  }
+
+  // running a new search to fill traversal table
+  WordSequence words;
 
   auto trieItr = trie.getItr();
   for (auto itr = number.begin() + offset
@@ -169,7 +202,8 @@ void traverseNumber(const std::string& number
         // no need to traverse since an potential paths would be bigger than the solution.
       }
       else {
-        stack.push_back(trieItr.node->wordIndex);
+        words.push_back(trieItr.node->wordIndex);
+        //stack.push_back(trieItr.node->wordIndex);
       }
     }
 
@@ -177,18 +211,30 @@ void traverseNumber(const std::string& number
       trieItr = trieItr.next(*itr);
     }
     else {
+      for (const auto& word : words) {
+        stack.push_back(word);
+      }
+      updateTraversalTable(offset, words);
       return;
     }
   }
 
    if (trieItr.has('\0')) {
-     stack.push_back(trieItr.node->wordIndex);
+     words.push_back(trieItr.node->wordIndex);
+     //stack.push_back(trieItr.node->wordIndex);
+   }
+
+   updateTraversalTable(offset, words);
+
+   // stack update
+   for (const auto& word : words) {
+     stack.push_back(word);
    }
 }
 
 void maintainTraversal(const Trie& trie
-                       , std::vector<int>& stack
-                       , std::vector<int>& path)
+                       , WordSequence& stack
+                       , WordSequence& path)
 {
   while (true) {
     if (stack.empty() || path.empty()) {
@@ -208,10 +254,10 @@ void maintainTraversal(const Trie& trie
 
 void findSequence(const std::string& number
                   , const Trie& trie
-                  , std::vector<int>& solution)
+                  , WordSequence& solution)
 {
-  std::vector<int> stack;
-  std::vector<int> path;
+  WordSequence stack;
+  WordSequence path;
 
   traverseNumber(number, trie, stack, path, solution);
 
@@ -229,10 +275,10 @@ void findSequence(const std::string& number
   }
 }
 
-using WordMap = std::unordered_map<std::string, std::int>;
+using WordMap = std::unordered_map<std::string, std::string>;
 
 void printSolution(const Trie& trie
-                   , const std::vector<int>& solution
+                   , const WordSequence& solution
                    , const WordMap& wordMap)
 {
   if (solution.empty()) {
@@ -252,12 +298,14 @@ void printSolution(const Trie& trie
 
 void runNumber(const std::string& number)
 {
+  clearTraversalTable();
   int wordCount;
   std::cin >> wordCount;
 
   WordMap wordMap;
+  wordMap.reserve(wordCount);
 
-  Trie trie;
+  Trie trie(wordCount);
   for (;wordCount>0;--wordCount) {
     std::string word;
     std::cin >> word;
@@ -266,7 +314,7 @@ void runNumber(const std::string& number)
     trie.addString(getNumberString(word));
   }
 
-  std::vector<int> solution;
+  WordSequence solution;
   findSequence(number, trie, solution);  
   printSolution(trie, solution, wordMap);
 }
