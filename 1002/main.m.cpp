@@ -4,6 +4,7 @@
 #include <vector>
 #include <memory>
 #include <iterator>
+#include <string.h>
 
 namespace {
   char getNumber(const char c) 
@@ -58,12 +59,15 @@ namespace {
   }
 
   using WordSequence = std::vector<int16_t>;
+
+  std::vector<std::string> dictionary(50000, std::string(51,'\0'));
+  std::vector<std::string> numberDictionary(50000, std::string(51,'\0'));
 }
 
 struct TrieNode
 {
   std::unordered_map<char, std::unique_ptr<TrieNode> > links;
-  int                                                  wordIndex;
+  int16_t                                              wordIndex;
 };
 
 struct TrieItr
@@ -89,26 +93,22 @@ class Trie
 {
 public:
   TrieNode d_root;
-  std::vector<std::string> d_words;
   Trie(const int n);
 
-  void addString(const std::string& s);
+  void addString(const std::string& s, const int index);
   TrieItr getItr() const;
 };
 
 Trie::Trie(const int n)
-{
-  d_words.reserve(n);
-}
+{}
 
 TrieItr Trie::getItr() const
 {
   return TrieItr{&d_root};
 }
 
-void Trie::addString(const std::string& s)
+void Trie::addString(const std::string& s, const int index)
 {
-  d_words.push_back(s);
   TrieNode* currentNode = &d_root;
   for (const char c : s) {
     auto& links = currentNode->links;
@@ -123,7 +123,7 @@ void Trie::addString(const std::string& s)
   }
   // marking the end of the trie string
   currentNode->links.emplace('\0', std::unique_ptr<TrieNode>(nullptr));
-  currentNode->wordIndex = d_words.size()-1;
+  currentNode->wordIndex = index;
 }
 
 int getOffset(const Trie& trie
@@ -131,12 +131,12 @@ int getOffset(const Trie& trie
 {
   int offset = 0;
   for (const auto& index : path) {
-    offset += trie.d_words[index].length();
+    offset += numberDictionary[index].length();
   }
   return offset;
 }
 
-using TraversalTable = std::unordered_map<int, WordSequence >;
+using TraversalTable = std::unordered_map<int16_t, WordSequence >;
 TraversalTable traversalTable;
 
 bool checkTraversalTable(const int offset
@@ -240,8 +240,8 @@ void maintainTraversal(const Trie& trie
     if (stack.empty() || path.empty()) {
       return;
     }
-    const auto& lhs = trie.d_words[stack.back()];
-    const auto& rhs = trie.d_words[path.back()];
+    const auto& lhs = numberDictionary[stack.back()];
+    const auto& rhs = numberDictionary[path.back()];
     if (lhs == rhs) {
       stack.pop_back();
       path.pop_back();
@@ -275,11 +275,8 @@ void findSequence(const std::string& number
   }
 }
 
-using WordMap = std::unordered_map<std::string, std::string>;
-
 void printSolution(const Trie& trie
-                   , const WordSequence& solution
-                   , const WordMap& wordMap)
+                   , const WordSequence& solution)
 {
   if (solution.empty()) {
     std::cout << "No solution." << std::endl;
@@ -290,10 +287,16 @@ void printSolution(const Trie& trie
     if (itr != solution.begin()) {
       std::cout << " ";
     }
-    const auto& numberWord = trie.d_words[*itr];
-    std::cout << wordMap.find(numberWord)->second;
+    std::cout << dictionary[*itr];
   }
   std::cout << std::endl;
+}
+
+void copyToDictionary(const std::string& s
+                     , char entry[50])
+{
+  s.copy(entry, s.length());
+  entry[s.length()] = '\0';
 }
 
 void runNumber(const std::string& number)
@@ -302,21 +305,21 @@ void runNumber(const std::string& number)
   int wordCount;
   std::cin >> wordCount;
 
-  WordMap wordMap;
-  wordMap.reserve(wordCount);
-
   Trie trie(wordCount);
   for (;wordCount>0;--wordCount) {
     std::string word;
     std::cin >> word;
+    dictionary[wordCount-1] = word;
+
     const auto numberString = getNumberString(word);
-    wordMap.emplace(numberString, word);
-    trie.addString(getNumberString(word));
+    numberDictionary[wordCount-1] = numberString;
+
+    trie.addString(numberString, wordCount-1);
   }
 
   WordSequence solution;
   findSequence(number, trie, solution);  
-  printSolution(trie, solution, wordMap);
+  printSolution(trie, solution);
 }
 
 int main()
