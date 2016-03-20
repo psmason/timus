@@ -5,6 +5,7 @@
 #include <memory>
 #include <iterator>
 #include <string.h>
+#include <array>
 
 namespace {
   char getNumber(const char c) 
@@ -66,9 +67,19 @@ namespace {
 
 struct TrieNode
 {
-  std::unordered_map<char, std::unique_ptr<TrieNode> > links;
+  std::array<void*, 10>                                links;     
   int16_t                                              wordIndex;
+
+  TrieNode()
+    : wordIndex(-1)
+  {
+    links.fill(NULL);
+  };
 };
+
+int getLinkPosition(const char c) {
+  return c - '0';
+}
 
 struct TrieItr
 {
@@ -80,19 +91,25 @@ struct TrieItr
 
 bool TrieItr::has(const char c)
 {
-  return node->links.count(c) > 0;
+  if ('\0' == c) {
+    return node->wordIndex > -1;
+  }
+  else {
+    return NULL != node->links[getLinkPosition(c)];
+  }
 }
 
 TrieItr TrieItr::next(const char c)
 {
-  auto itr = node->links.find(c);
-  return TrieItr{itr->second.get()};
+  return TrieItr{(TrieNode*) node->links[getLinkPosition(c)]};
 }
 
 class Trie
 {
 public:
   TrieNode d_root;
+  std::vector<std::unique_ptr<TrieNode> > d_nodes;
+
   Trie(const int n);
 
   void addString(const std::string& s, const int index);
@@ -112,17 +129,16 @@ void Trie::addString(const std::string& s, const int index)
   TrieNode* currentNode = &d_root;
   for (const char c : s) {
     auto& links = currentNode->links;
-    auto itr = links.find(c);
-    if (links.end() == itr) {
-      auto p = links.emplace(c, std::unique_ptr<TrieNode>(new TrieNode));
-      currentNode = p.first->second.get();      
+    if (NULL != links[getLinkPosition(c)]) {
+      currentNode = (TrieNode*) currentNode->links[getLinkPosition(c)];
     }
     else {
-      currentNode = itr->second.get();
+      d_nodes.push_back(std::unique_ptr<TrieNode>(new TrieNode));
+      currentNode->links[getLinkPosition(c)] = (void*) d_nodes.back().get();
+      currentNode = d_nodes.back().get();
     }
   }
   // marking the end of the trie string
-  currentNode->links.emplace('\0', std::unique_ptr<TrieNode>(nullptr));
   currentNode->wordIndex = index;
 }
 
@@ -165,6 +181,23 @@ void clearTraversalTable()
   traversalTable.clear();
 }
 
+void printSolution(const Trie& trie
+                   , const WordSequence& solution)
+{
+  if (solution.empty()) {
+    std::cout << "No solution." << std::endl;
+    return;
+  }
+  
+  for (auto itr = solution.begin(); itr != solution.end(); ++itr) {
+    if (itr != solution.begin()) {
+      std::cout << " ";
+    }
+    std::cout << dictionary[*itr];
+  }
+  std::cout << std::endl;
+}
+
 void traverseNumber(const std::string& number
                     , const Trie& trie
                     , WordSequence& stack
@@ -172,6 +205,7 @@ void traverseNumber(const std::string& number
                     , WordSequence& solution)
 {
   const auto offset = getOffset(trie, path);
+
   if (number.size() == offset) {
     if (solution.empty()) {
       solution = path;
@@ -221,7 +255,6 @@ void traverseNumber(const std::string& number
 
    if (trieItr.has('\0')) {
      words.push_back(trieItr.node->wordIndex);
-     //stack.push_back(trieItr.node->wordIndex);
    }
 
    updateTraversalTable(offset, words);
@@ -273,23 +306,6 @@ void findSequence(const std::string& number
 
     maintainTraversal(trie, stack, path);
   }
-}
-
-void printSolution(const Trie& trie
-                   , const WordSequence& solution)
-{
-  if (solution.empty()) {
-    std::cout << "No solution." << std::endl;
-    return;
-  }
-  
-  for (auto itr = solution.begin(); itr != solution.end(); ++itr) {
-    if (itr != solution.begin()) {
-      std::cout << " ";
-    }
-    std::cout << dictionary[*itr];
-  }
-  std::cout << std::endl;
 }
 
 void copyToDictionary(const std::string& s
